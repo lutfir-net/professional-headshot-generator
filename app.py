@@ -5,195 +5,226 @@ from PIL import Image
 import io
 import os
 
-# Page Configuration
+# --- Page Configuration ---
 st.set_page_config(
-    page_title="Professional Headshot Generator",
-    page_icon="📸",
-    layout="wide"
+    page_title="Headshot AI | Professional Profiles",
+    page_icon="👤",
+    layout="centered", # Better for mobile/desktop responsiveness
+    initial_sidebar_state="collapsed"
 )
 
-# Custom CSS for better aesthetics
+# --- Google-Style Minimalist CSS ---
 st.markdown("""
     <style>
+    /* Google Fonts */
+    @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap');
+    
+    html, body, [class*="css"] {
+        font-family: 'Google Sans', sans-serif;
+    }
+
     .main {
-        background-color: #f8f9fa;
+        background-color: transparent;
     }
-    .stButton>button {
-        width: 100%;
-        border-radius: 5px;
-        height: 3em;
-        background-color: #007bff;
+
+    /* Minimalist Header */
+    .header-container {
+        text-align: center;
+        padding: 2rem 0 3rem 0;
+    }
+    .header-title {
+        font-weight: 700;
+        font-size: 2.5rem;
+        color: #1a73e8; /* Google Blue */
+        margin-bottom: 0.5rem;
+    }
+    .header-subtitle {
+        font-size: 1.1rem;
+        color: #5f6368;
+    }
+
+    /* Card Styling for Sections */
+    .st-emotion-cache-1r6slb0 {
+        border-radius: 12px;
+        border: 1px solid #dadce0;
+        padding: 1.5rem;
+        background-color: white;
+    }
+
+    /* Dark Mode Adjustments */
+    @media (prefers-color-scheme: dark) {
+        .header-subtitle { color: #bdc1c6; }
+        .st-emotion-cache-1r6slb0 {
+            background-color: #202124;
+            border-color: #3c4043;
+        }
+    }
+
+    /* Primary Button - Google Blue */
+    div.stButton > button:first-child {
+        background-color: #1a73e8;
         color: white;
-    }
-    .stDownloadButton>button {
+        border-radius: 24px;
+        padding: 0.6rem 2rem;
+        font-weight: 500;
+        border: none;
         width: 100%;
-        border-radius: 5px;
-        background-color: #28a745;
-        color: white;
+        transition: box-shadow 0.2s;
     }
+    div.stButton > button:first-child:hover {
+        box-shadow: 0 1px 3px 1px rgba(60,64,67,.15), 0 1px 2px 0 rgba(60,64,67,.30);
+        background-color: #1765cc;
+    }
+
+    /* Secondary/Download Button */
+    div.stDownloadButton > button:first-child {
+        background-color: transparent;
+        color: #1a73e8;
+        border: 1px solid #dadce0;
+        border-radius: 24px;
+        width: 100%;
+    }
+    div.stDownloadButton > button:first-child:hover {
+        background-color: rgba(26,115,232,0.04);
+        border-color: #1a73e8;
+    }
+
+    /* Hide Sidebar elements for cleaner look */
+    [data-testid="stSidebarNav"] {display: none;}
     </style>
     """, unsafe_allow_html=True)
 
 def main():
-    st.title("📸 Professional Headshot Generator")
-    st.markdown("Transform your casual photos into professional headshots for LinkedIn, resumes, or corporate profiles using **Nano Banana (Gemini 2.5 Flash Image)**.")
+    # --- Header Section ---
+    st.markdown('<div class="header-container">', unsafe_allow_html=True)
+    st.markdown('<div class="header-title">Headshot AI</div>', unsafe_allow_html=True)
+    st.markdown('<div class="header-subtitle">Professional portraits in seconds, powered by Nano Banana.</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # Sidebar for API Configuration and Info
+    # Sidebar for Keys (Hidden by default but accessible)
     with st.sidebar:
-        st.header("Settings")
-        api_key = st.text_input("Enter Gemini API Key", type="password", value=st.secrets.get("GEMINI_API_KEY", ""))
-        
-        st.info("The app uses 'gemini-2.5-flash-image' (Nano Banana) for high-speed, identity-preserving image editing.")
-        
+        st.title("Settings")
+        api_key = st.text_input("Gemini API Key", type="password", value=st.secrets.get("GEMINI_API_KEY", ""))
         st.divider()
-        st.markdown("### How to use:")
-        st.write("1. Upload a clear photo of your face.")
-        st.write("2. Describe your desired professional look.")
-        st.write("3. Click 'Generate Headshot'.")
+        st.caption("v2.0 | Google Design Language")
 
     if not api_key:
-        st.warning("Please provide a Gemini API Key in the sidebar to proceed.")
+        st.warning("Please provide an API key in the sidebar settings.")
         return
 
-    # Initialize Gemini Client
     client = genai.Client(api_key=api_key)
 
-    # UI Layout: Two columns for input and output
-    col1, col2 = st.columns([1, 1])
-
-    with col1:
-        st.subheader("1. Upload Your Photo")
-        uploaded_file = st.file_uploader("Choose a photo...", type=["jpg", "jpeg", "png"])
+    # --- Main Content: Centered Layout ---
+    
+    # Section 1: Upload
+    with st.container():
+        st.markdown("### 1. Source Photo")
+        uploaded_file = st.file_uploader("Drop your casual photo here", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
         
         if uploaded_file:
             input_image = Image.open(uploaded_file)
-            st.image(input_image, caption="Original Photo", use_container_width=True)
-
-    with col2:
-        st.subheader("2. Customize Your Style")
-        
-        # Granular Style Controls
-        attire = st.selectbox("Professional Attire:", [
-            "Dark Navy Suit with White Shirt",
-            "Charcoal Grey Suit with Light Blue Shirt",
-            "Black Blazer with Professional Top",
-            "Beige Smart-Casual Blazer",
-            "Professional Doctor's Lab Coat",
-            "Casual Professional Sweater",
-            "Business Formal with Tie"
-        ])
-
-        background = st.selectbox("Background Setting:", [
-            "Solid Neutral Grey (Studio)",
-            "Soft Blurred Modern Office",
-            "Modern Glass Building Lobby",
-            "Library with Blurred Bookshelf",
-            "Minimalist White Professional Studio",
-            "Warm Wooden Interior",
-            "Soft Natural Outdoor Garden"
-        ])
-
-        lighting = st.selectbox("Lighting Style:", [
-            "Studio Softbox Lighting",
-            "Rembrandt (Dramatic) Lighting",
-            "Natural Window Light",
-            "Bright Professional Office Light",
-            "Warm Golden Hour Glow"
-        ])
-
-        pose = st.selectbox("Subject Pose:", [
-            "Facing Camera Directly",
-            "3/4 Glance (Slightly Turned)",
-            "Profile View (Side Glance)",
-            "Dynamic Tilt (Confident Pose)",
-            "Crossed Arms (Professional)",
-            "Hand on Chin (Thoughtful)"
-        ])
-
-        # Advanced options (optional)
-        with st.expander("Advanced Prompting"):
-            extra_details = st.text_input("Additional details (optional):", 
-                                         placeholder="e.g., wearing glasses, subtle smile, specific tie color...")
-
-        # Construct the dynamic prompt
-        user_prompt = f"Professional headshot of the person in the image. " \
-                      f"The person is {pose.lower()}. " \
-                      f"They are wearing a {attire.lower()}. " \
-                      f"The background is a {background.lower()}. " \
-                      f"The lighting is {lighting.lower()}. " \
-                      f"Ensure high-quality, sharp focus, 8k resolution, maintaining the original person's facial features and identity."
-        
-        if extra_details:
-            user_prompt += f" Additional details: {extra_details}."
-
-        st.info(f"**Generated Prompt:** _{user_prompt}_")
-
-        generate_btn = st.button("Generate Headshot")
-
-    if generate_btn:
-        if not uploaded_file:
-            st.error("Please upload a photo first.")
-        elif not user_prompt:
-            st.error("Please provide a style description.")
+            # Preview with rounded corners
+            st.image(input_image, use_container_width=True)
+            st.success("Photo uploaded successfully.")
         else:
-            with st.spinner("Nano Banana is crafting your professional headshot..."):
-                # Model Fallback Strategy
-                models_to_try = [
-                    "gemini-2.5-flash-image",  # Primary Nano Banana
-                    "gemini-3-pro-image",      # Nano Banana Pro
-                    "gemini-2.0-flash"         # General Multimodal Fallback
-                ]
-                
+            st.info("Tip: Close-up photos with clear lighting work best.")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Section 2: Style Configuration
+    if uploaded_file:
+        with st.container():
+            st.markdown("### 2. Configure Profile")
+            
+            # Using Tabs for cleaner organization on mobile
+            tab1, tab2 = st.tabs(["Quick Styles", "Advanced"])
+            
+            with tab1:
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    attire = st.selectbox("Attire", [
+                        "Dark Navy Suit", "Charcoal Grey Suit", "Black Blazer", 
+                        "Smart Sweater", "Professional Lab Coat", "Business Formal"
+                    ])
+                    background = st.selectbox("Background", [
+                        "Minimal Studio", "Modern Office", "City View (Blurred)", 
+                        "Library", "Garden", "Solid White"
+                    ])
+                with col_b:
+                    lighting = st.selectbox("Lighting", [
+                        "Soft Studio", "Rembrandt", "Natural Window", 
+                        "Office Bright", "Golden Hour"
+                    ])
+                    pose = st.selectbox("Pose", [
+                        "Facing Directly", "3/4 Glance", "Confident Tilt", 
+                        "Crossed Arms", "Hand on Chin"
+                    ])
+
+            with tab2:
+                extra_details = st.text_input("Custom enhancements", 
+                                             placeholder="e.g., Wearing black-rimmed glasses, soft smile...")
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            # Prompt Construction
+            user_prompt = f"A professional high-quality headshot of the person in the image. " \
+                          f"Subject is {pose.lower()} and wearing a {attire.lower()}. " \
+                          f"The background is a {background.lower()} setting with {lighting.lower()}. " \
+                          f"Ensure 8k resolution, sharp focus on facial features, and perfect identity preservation."
+            
+            if extra_details:
+                user_prompt += f" Details: {extra_details}."
+
+            generate_btn = st.button("Generate Professional Portrait")
+
+        # --- Generation Phase ---
+        if generate_btn:
+            with st.status("AI is processing...", expanded=False) as status:
+                models_to_try = ["gemini-2.5-flash-image", "gemini-3-pro-image", "gemini-2.0-flash"]
                 generated_image = None
                 success_model = None
-                error_logs = []
-
+                
                 for model_id in models_to_try:
                     try:
+                        st.write(f"Attempting with {model_id}...")
                         response = client.models.generate_content(
                             model=model_id,
                             contents=[user_prompt, input_image],
-                            config=types.GenerateContentConfig(
-                                response_modalities=["Image"]
-                            )
+                            config=types.GenerateContentConfig(response_modalities=["Image"])
                         )
-                        
-                        # Extract the generated image from the response
                         for part in response.candidates[0].content.parts:
                             if part.inline_data:
                                 generated_image = Image.open(io.BytesIO(part.inline_data.data))
                                 success_model = model_id
                                 break
-                        
                         if generated_image:
-                            break # Successfully generated
-                            
-                    except Exception as e:
-                        error_logs.append(f"{model_id}: {str(e)}")
-                        continue # Try the next model
+                            break
+                    except Exception:
+                        continue
                 
                 if generated_image:
-                    st.success(f"Success! Generated using model: `{success_model}`")
-                    st.subheader("3. Your Professional Headshot")
-                    st.image(generated_image, caption="Generated Headshot", use_container_width=True)
+                    status.update(label=f"Generation Complete ({success_model})", state="complete", expanded=False)
                     
-                    # Download button
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.markdown("### 3. Final Result")
+                    st.image(generated_image, use_container_width=True)
+                    
+                    # Download Action
                     buf = io.BytesIO()
                     generated_image.save(buf, format="PNG")
-                    byte_im = buf.getvalue()
-                    
                     st.download_button(
-                        label="Download Headshot",
-                        data=byte_im,
+                        label="Download Portrait",
+                        data=buf.getvalue(),
                         file_name="professional_headshot.png",
                         mime="image/png"
                     )
                 else:
-                    st.error("All model attempts failed to generate an image.")
-                    with st.expander("View Error Details"):
-                        for log in error_logs:
-                            st.write(log)
-                    st.info("Tip: Ensure your API key is valid and you have sufficient quota for these models.")
+                    status.update(label="Generation Failed", state="error", expanded=True)
+                    st.error("We couldn't generate your portrait. Please check your API quota or try a different photo.")
+
+    # --- Footer ---
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align: center; color: #9aa0a6; font-size: 0.8rem;'>Built with Gemini Nano Banana & Streamlit</div>", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()

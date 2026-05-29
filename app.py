@@ -4,14 +4,21 @@ from google.genai import types
 from PIL import Image
 import io
 import os
+import time
 
 # --- Page Configuration ---
 st.set_page_config(
     page_title="Headshot AI | Professional Profiles",
     page_icon="👤",
-    layout="centered", # Better for mobile/desktop responsiveness
-    initial_sidebar_state="collapsed"
+    layout="centered",
+    initial_sidebar_state="expanded"
 )
+
+# Initialize Session State
+if 'execution_metadata' not in st.session_state:
+    st.session_state.execution_metadata = None
+if 'show_api_key_input' not in st.session_state:
+    st.session_state.show_api_key_input = False
 
 # --- Google-Style Minimalist CSS ---
 st.markdown("""
@@ -101,12 +108,39 @@ def main():
     st.markdown('<div class="header-subtitle">Professional portraits in seconds, powered by Nano Banana.</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Sidebar for Keys (Hidden by default but accessible)
+    # Sidebar for Keys and Metadata
     with st.sidebar:
-        st.title("Settings")
-        api_key = st.text_input("Gemini API Key", type="password", value=st.secrets.get("GEMINI_API_KEY", ""))
+        st.title("Settings & Status")
+        
+        # API Key Management
+        stored_key = st.secrets.get("GEMINI_API_KEY", "")
+        if st.session_state.show_api_key_input or not stored_key:
+            api_key = st.text_input("Gemini API Key", type="password", value=stored_key)
+            if st.button("Save & Hide Key"):
+                st.session_state.show_api_key_input = False
+                st.rerun()
+        else:
+            st.success("API Key is securely configured.")
+            if st.button("Change API Key"):
+                st.session_state.show_api_key_input = True
+                st.rerun()
+            api_key = stored_key
+
         st.divider()
-        st.caption("v2.0 | Google Design Language")
+        
+        # Execution Details Section
+        st.subheader("Last Execution Details")
+        if st.session_state.execution_metadata:
+            meta = st.session_state.execution_metadata
+            st.write(f"**Model:** `{meta['model']}`")
+            st.write(f"**Time:** `{meta['time']:.2f}s`")
+            with st.expander("View Full Prompt"):
+                st.caption(meta['prompt'])
+        else:
+            st.caption("No generation data yet.")
+        
+        st.divider()
+        st.caption("v2.1 | Google Design Language")
 
     if not api_key:
         st.warning("Please provide an API key in the sidebar settings.")
@@ -123,7 +157,6 @@ def main():
         
         if uploaded_file:
             input_image = Image.open(uploaded_file)
-            # Preview with rounded corners
             st.image(input_image, use_container_width=True)
             st.success("Photo uploaded successfully.")
         else:
@@ -136,7 +169,6 @@ def main():
         with st.container():
             st.markdown("### 2. Configure Profile")
             
-            # Using Tabs for cleaner organization on mobile
             tab1, tab2 = st.tabs(["Quick Styles", "Advanced"])
             
             with tab1:
@@ -179,6 +211,7 @@ def main():
 
         # --- Generation Phase ---
         if generate_btn:
+            start_time = time.time()
             with st.status("AI is processing...", expanded=False) as status:
                 models_to_try = ["gemini-2.5-flash-image", "gemini-3-pro-image", "gemini-2.0-flash"]
                 generated_image = None
@@ -203,24 +236,35 @@ def main():
                         continue
                 
                 if generated_image:
+                    end_time = time.time()
+                    # Store metadata and image in session state
+                    st.session_state.execution_metadata = {
+                        "model": success_model,
+                        "time": end_time - start_time,
+                        "prompt": user_prompt,
+                        "image": generated_image
+                    }
                     status.update(label=f"Generation Complete ({success_model})", state="complete", expanded=False)
-                    
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    st.markdown("### 3. Final Result")
-                    st.image(generated_image, use_container_width=True)
-                    
-                    # Download Action
-                    buf = io.BytesIO()
-                    generated_image.save(buf, format="PNG")
-                    st.download_button(
-                        label="Download Portrait",
-                        data=buf.getvalue(),
-                        file_name="professional_headshot.png",
-                        mime="image/png"
-                    )
+                    st.rerun()
                 else:
                     status.update(label="Generation Failed", state="error", expanded=True)
                     st.error("We couldn't generate your portrait. Please check your API quota or try a different photo.")
+
+    # Display Result from session state
+    if st.session_state.execution_metadata and 'image' in st.session_state.execution_metadata:
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("### 3. Final Result")
+        st.image(st.session_state.execution_metadata['image'], use_container_width=True)
+        
+        # Download Action
+        buf = io.BytesIO()
+        st.session_state.execution_metadata['image'].save(buf, format="PNG")
+        st.download_button(
+            label="Download Portrait",
+            data=buf.getvalue(),
+            file_name="professional_headshot.png",
+            mime="image/png"
+        )
 
     # --- Footer ---
     st.markdown("<br><br>", unsafe_allow_html=True)

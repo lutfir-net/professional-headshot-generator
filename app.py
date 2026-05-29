@@ -29,14 +29,21 @@ def get_gemini_client(api_key):
     """Caches the Gemini Client to avoid re-instantiation on every rerun."""
     return genai.Client(api_key=api_key)
 
-def optimize_image(img, max_dim=1024):
-    """Resizes an image to reduce network latency while preserving enough detail for the AI."""
+def optimize_image(img, max_dim=1024, quality=85):
+    """Resizes and compresses image to minimize tokens and network latency."""
     width, height = img.size
     if max(width, height) > max_dim:
         ratio = max_dim / max(width, height)
         new_size = (int(width * ratio), int(height * ratio))
-        return img.resize(new_size, Image.LANCZOS)
-    return img
+        img = img.resize(new_size, Image.LANCZOS)
+    
+    # Convert to RGB if necessary (e.g. for PNGs with alpha)
+    if img.mode in ("RGBA", "P"):
+        img = img.convert("RGB")
+        
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=quality)
+    return Image.open(buf)
 
 # --- Google-Style Minimalist CSS ---
 st.markdown("""
@@ -146,19 +153,34 @@ def main():
 
         st.divider()
         
+        # Token Optimization Settings
+        st.subheader("Performance Settings")
+        perf_mode = st.radio("Quality Mode", ["Eco (Low Token)", "Balanced (Standard)", "Pro (High Fidelity)"], index=1)
+        
+        # Mapping for optimization parameters
+        perf_map = {
+            "Eco (Low Token)": {"res": 512, "api_res": "MEDIA_RESOLUTION_LOW"},
+            "Balanced (Standard)": {"res": 1024, "api_res": "MEDIA_RESOLUTION_MEDIUM"},
+            "Pro (High Fidelity)": {"res": 1024, "api_res": "MEDIA_RESOLUTION_HIGH"}
+        }
+        current_perf = perf_map[perf_mode]
+
+        st.divider()
+        
         # Execution Details Section
         st.subheader("Last Execution Details")
         if st.session_state.execution_metadata:
             meta = st.session_state.execution_metadata
             st.write(f"**Model:** `{meta['model']}`")
             st.write(f"**Time:** `{meta['time']:.2f}s`")
+            st.write(f"**Mode:** `{meta['mode']}`")
             with st.expander("View Full Prompt"):
                 st.caption(meta['prompt'])
         else:
             st.caption("No generation data yet.")
         
         st.divider()
-        st.caption("v2.2 | Optimized Image Pipeline")
+        st.caption("v2.4 | Advanced Token Scaling")
 
     if not api_key:
         st.warning("Please provide an API key in the sidebar settings.")
@@ -222,8 +244,8 @@ def main():
 
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # Prompt Construction: Optimized for low token count
-            user_prompt = f"Professional headshot. Pose: {pose.lower()}. Attire: {attire.lower()}. BG: {background.lower()}. Light: {lighting.lower()}. 8k, sharp focus, preserve identity."
+            # Prompt Construction: Minimalist to save input tokens
+            user_prompt = f"Professional headshot. Pose: {pose.lower()}. Attire: {attire.lower()}. BG: {background.lower()}. Light: {lighting.lower()}. 8k, sharp focus, keep identity."
             
             if extra_details:
                 user_prompt += f" Details: {extra_details}."
@@ -235,9 +257,9 @@ def main():
             start_time = time.time()
             with st.status("AI is processing...", expanded=False) as status:
                 
-                # OPTIMIZATION: Resize image before sending to API
-                st.write("Optimizing image payload...")
-                input_image = optimize_image(input_image_raw)
+                # OPTIMIZATION: Resize image based on Quality Mode
+                st.write(f"Optimizing for {perf_mode} mode...")
+                input_image = optimize_image(input_image_raw, max_dim=current_perf["res"])
                 
                 models_to_try = ["gemini-2.5-flash-image", "gemini-3-pro-image", "gemini-2.0-flash"]
                 generated_image = None
@@ -253,6 +275,7 @@ def main():
                             config=types.GenerateContentConfig(
                                 system_instruction="Maintain subject identity. Transform photo to professional headshot strictly following attire, pose, and background.",
                                 response_modalities=["Image"],
+                                media_resolution=current_perf["api_res"], # ADVANCED TOKEN SAVING
                                 max_output_tokens=100 
                             )
                         )
@@ -274,7 +297,8 @@ def main():
                         "model": success_model,
                         "time": end_time - start_time,
                         "prompt": user_prompt,
-                        "image": generated_image
+                        "image": generated_image,
+                        "mode": perf_mode
                     }
                     status.update(label=f"Generation Complete ({success_model})", state="complete", expanded=False)
                     st.rerun()

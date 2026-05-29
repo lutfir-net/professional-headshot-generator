@@ -70,22 +70,53 @@ def main():
             st.image(input_image, caption="Original Photo", use_container_width=True)
 
     with col2:
-        st.subheader("2. Define Your Style")
+        st.subheader("2. Customize Your Style")
         
-        prompt_options = [
-            "Professional corporate headshot, wearing a dark navy suit and white shirt, studio lighting, solid grey background, sharp focus, 8k resolution.",
-            "Creative professional headshot, wearing a stylish blazer, soft natural office background, warm lighting, approachable smile.",
-            "Academic headshot, professional attire, library background with blurred books, soft lighting.",
-            "Tech startup headshot, casual professional attire, modern office background, bright and energetic lighting."
-        ]
+        # Granular Style Controls
+        attire = st.selectbox("Professional Attire:", [
+            "Dark Navy Suit with White Shirt",
+            "Charcoal Grey Suit with Light Blue Shirt",
+            "Black Blazer with Professional Top",
+            "Beige Smart-Casual Blazer",
+            "Professional Doctor's Lab Coat",
+            "Casual Professional Sweater",
+            "Business Formal with Tie"
+        ])
+
+        background = st.selectbox("Background Setting:", [
+            "Solid Neutral Grey (Studio)",
+            "Soft Blurred Modern Office",
+            "Modern Glass Building Lobby",
+            "Library with Blurred Bookshelf",
+            "Minimalist White Professional Studio",
+            "Warm Wooden Interior",
+            "Soft Natural Outdoor Garden"
+        ])
+
+        lighting = st.selectbox("Lighting Style:", [
+            "Studio Softbox Lighting",
+            "Rembrandt (Dramatic) Lighting",
+            "Natural Window Light",
+            "Bright Professional Office Light",
+            "Warm Golden Hour Glow"
+        ])
+
+        # Advanced options (optional)
+        with st.expander("Advanced Prompting"):
+            extra_details = st.text_input("Additional details (optional):", 
+                                         placeholder="e.g., wearing glasses, subtle smile, specific tie color...")
+
+        # Construct the dynamic prompt
+        user_prompt = f"Professional headshot of the person in the image. " \
+                      f"They are wearing a {attire.lower()}. " \
+                      f"The background is a {background.lower()}. " \
+                      f"The lighting is {lighting.lower()}. " \
+                      f"Ensure high-quality, sharp focus, 8k resolution, maintaining the original person's facial features and identity."
         
-        selected_style = st.selectbox("Choose a pre-defined style:", ["Custom"] + prompt_options)
-        
-        if selected_style == "Custom":
-            user_prompt = st.text_area("Describe your desired look:", 
-                                       placeholder="e.g., Professional headshot, charcoal suit, blurred office background, studio lighting...")
-        else:
-            user_prompt = selected_style
+        if extra_details:
+            user_prompt += f" Additional details: {extra_details}."
+
+        st.info(f"**Generated Prompt:** _{user_prompt}_")
 
         generate_btn = st.button("Generate Headshot")
 

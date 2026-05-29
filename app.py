@@ -137,46 +137,63 @@ def main():
             st.error("Please provide a style description.")
         else:
             with st.spinner("Nano Banana is crafting your professional headshot..."):
-                try:
-                    # Prepare the image for the API
-                    # The SDK accepts PIL images directly in the contents list
-                    
-                    response = client.models.generate_content(
-                        model="gemini-2.5-flash-image",
-                        contents=[user_prompt, input_image],
-                        config=types.GenerateContentConfig(
-                            response_modalities=["Image"]
+                # Model Fallback Strategy
+                models_to_try = [
+                    "gemini-2.5-flash-image",  # Primary Nano Banana
+                    "gemini-3-pro-image",      # Nano Banana Pro
+                    "gemini-2.0-flash"         # General Multimodal Fallback
+                ]
+                
+                generated_image = None
+                success_model = None
+                error_logs = []
+
+                for model_id in models_to_try:
+                    try:
+                        response = client.models.generate_content(
+                            model=model_id,
+                            contents=[user_prompt, input_image],
+                            config=types.GenerateContentConfig(
+                                response_modalities=["Image"]
+                            )
                         )
+                        
+                        # Extract the generated image from the response
+                        for part in response.candidates[0].content.parts:
+                            if part.inline_data:
+                                generated_image = Image.open(io.BytesIO(part.inline_data.data))
+                                success_model = model_id
+                                break
+                        
+                        if generated_image:
+                            break # Successfully generated
+                            
+                    except Exception as e:
+                        error_logs.append(f"{model_id}: {str(e)}")
+                        continue # Try the next model
+                
+                if generated_image:
+                    st.success(f"Success! Generated using model: `{success_model}`")
+                    st.subheader("3. Your Professional Headshot")
+                    st.image(generated_image, caption="Generated Headshot", use_container_width=True)
+                    
+                    # Download button
+                    buf = io.BytesIO()
+                    generated_image.save(buf, format="PNG")
+                    byte_im = buf.getvalue()
+                    
+                    st.download_button(
+                        label="Download Headshot",
+                        data=byte_im,
+                        file_name="professional_headshot.png",
+                        mime="image/png"
                     )
-                    
-                    # Extract the generated image from the response
-                    generated_image = None
-                    for part in response.candidates[0].content.parts:
-                        if part.inline_data:
-                            generated_image = Image.open(io.BytesIO(part.inline_data.data))
-                            break
-                    
-                    if generated_image:
-                        st.subheader("3. Your Professional Headshot")
-                        st.image(generated_image, caption="Generated Headshot", use_container_width=True)
-                        
-                        # Download button
-                        buf = io.BytesIO()
-                        generated_image.save(buf, format="PNG")
-                        byte_im = buf.getvalue()
-                        
-                        st.download_button(
-                            label="Download Headshot",
-                            data=byte_im,
-                            file_name="professional_headshot.png",
-                            mime="image/png"
-                        )
-                    else:
-                        st.error("Failed to generate an image. The model might not have returned an image part.")
-                        
-                except Exception as e:
-                    st.error(f"An error occurred: {e}")
-                    st.info("Tip: Ensure your API key is valid and you have access to the 'gemini-2.5-flash-image' model.")
+                else:
+                    st.error("All model attempts failed to generate an image.")
+                    with st.expander("View Error Details"):
+                        for log in error_logs:
+                            st.write(log)
+                    st.info("Tip: Ensure your API key is valid and you have sufficient quota for these models.")
 
 if __name__ == "__main__":
     main()

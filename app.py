@@ -101,6 +101,15 @@ def main():
             "Warm Golden Hour Glow"
         ])
 
+        pose = st.selectbox("Subject Pose:", [
+            "Facing Camera Directly",
+            "3/4 Glance (Slightly Turned)",
+            "Profile View (Side Glance)",
+            "Dynamic Tilt (Confident Pose)",
+            "Crossed Arms (Professional)",
+            "Hand on Chin (Thoughtful)"
+        ])
+
         # Advanced options (optional)
         with st.expander("Advanced Prompting"):
             extra_details = st.text_input("Additional details (optional):", 
@@ -108,6 +117,7 @@ def main():
 
         # Construct the dynamic prompt
         user_prompt = f"Professional headshot of the person in the image. " \
+                      f"The person is {pose.lower()}. " \
                       f"They are wearing a {attire.lower()}. " \
                       f"The background is a {background.lower()}. " \
                       f"The lighting is {lighting.lower()}. " \

@@ -222,11 +222,8 @@ def main():
 
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # Prompt Construction
-            user_prompt = f"A professional high-quality headshot of the person in the image. " \
-                          f"Subject is {pose.lower()} and wearing a {attire.lower()}. " \
-                          f"The background is a {background.lower()} setting with {lighting.lower()}. " \
-                          f"Ensure 8k resolution, sharp focus on facial features, and perfect identity preservation."
+            # Prompt Construction: Optimized for low token count
+            user_prompt = f"Professional headshot. Pose: {pose.lower()}. Attire: {attire.lower()}. BG: {background.lower()}. Light: {lighting.lower()}. 8k, sharp focus, preserve identity."
             
             if extra_details:
                 user_prompt += f" Details: {extra_details}."
@@ -253,7 +250,11 @@ def main():
                         response = client.models.generate_content(
                             model=model_id,
                             contents=[user_prompt, input_image],
-                            config=types.GenerateContentConfig(response_modalities=["Image"])
+                            config=types.GenerateContentConfig(
+                                system_instruction="Maintain subject identity. Transform photo to professional headshot strictly following attire, pose, and background.",
+                                response_modalities=["Image"],
+                                max_output_tokens=100 
+                            )
                         )
                         for part in response.candidates[0].content.parts:
                             if part.inline_data:

@@ -19,6 +19,24 @@ if 'execution_metadata' not in st.session_state:
     st.session_state.execution_metadata = None
 if 'show_api_key_input' not in st.session_state:
     st.session_state.show_api_key_input = False
+if 'last_uploaded_filename' not in st.session_state:
+    st.session_state.last_uploaded_filename = None
+
+# --- Optimization Helpers ---
+
+@st.cache_resource
+def get_gemini_client(api_key):
+    """Caches the Gemini Client to avoid re-instantiation on every rerun."""
+    return genai.Client(api_key=api_key)
+
+def optimize_image(img, max_dim=1024):
+    """Resizes an image to reduce network latency while preserving enough detail for the AI."""
+    width, height = img.size
+    if max(width, height) > max_dim:
+        ratio = max_dim / max(width, height)
+        new_size = (int(width * ratio), int(height * ratio))
+        return img.resize(new_size, Image.LANCZOS)
+    return img
 
 # --- Google-Style Minimalist CSS ---
 st.markdown("""
@@ -140,13 +158,14 @@ def main():
             st.caption("No generation data yet.")
         
         st.divider()
-        st.caption("v2.1 | Google Design Language")
+        st.caption("v2.2 | Optimized Image Pipeline")
 
     if not api_key:
         st.warning("Please provide an API key in the sidebar settings.")
         return
 
-    client = genai.Client(api_key=api_key)
+    # Using the cached client
+    client = get_gemini_client(api_key)
 
     # --- Main Content: Centered Layout ---
     
@@ -156,8 +175,13 @@ def main():
         uploaded_file = st.file_uploader("Drop your casual photo here", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
         
         if uploaded_file:
-            input_image = Image.open(uploaded_file)
-            st.image(input_image, use_container_width=True)
+            # Detect new file upload and clear old results
+            if st.session_state.last_uploaded_filename != uploaded_file.name:
+                st.session_state.execution_metadata = None
+                st.session_state.last_uploaded_filename = uploaded_file.name
+
+            input_image_raw = Image.open(uploaded_file)
+            st.image(input_image_raw, use_container_width=True)
             st.success("Photo uploaded successfully.")
         else:
             st.info("Tip: Close-up photos with clear lighting work best.")
@@ -213,9 +237,15 @@ def main():
         if generate_btn:
             start_time = time.time()
             with st.status("AI is processing...", expanded=False) as status:
+                
+                # OPTIMIZATION: Resize image before sending to API
+                st.write("Optimizing image payload...")
+                input_image = optimize_image(input_image_raw)
+                
                 models_to_try = ["gemini-2.5-flash-image", "gemini-3-pro-image", "gemini-2.0-flash"]
                 generated_image = None
                 success_model = None
+                error_logs = []
                 
                 for model_id in models_to_try:
                     try:
@@ -232,7 +262,8 @@ def main():
                                 break
                         if generated_image:
                             break
-                    except Exception:
+                    except Exception as e:
+                        error_logs.append(f"Model {model_id} failed: {str(e)}")
                         continue
                 
                 if generated_image:
@@ -248,7 +279,10 @@ def main():
                     st.rerun()
                 else:
                     status.update(label="Generation Failed", state="error", expanded=True)
-                    st.error("We couldn't generate your portrait. Please check your API quota or try a different photo.")
+                    st.error("All model attempts failed to generate an image.")
+                    with st.expander("View Error Details"):
+                        for log in error_logs:
+                            st.write(log)
 
     # Display Result from session state
     if st.session_state.execution_metadata and 'image' in st.session_state.execution_metadata:

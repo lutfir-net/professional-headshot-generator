@@ -1,7 +1,8 @@
 import streamlit as st
 from google import genai
 from google.genai import types
-from PIL import Image
+from PIL import Image, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 import io
 import os
 import time
@@ -274,9 +275,7 @@ def main():
                             contents=[user_prompt, input_image],
                             config=types.GenerateContentConfig(
                                 system_instruction="Maintain subject identity. Transform photo to professional headshot strictly following attire, pose, and background.",
-                                response_modalities=["Image"],
-                                media_resolution=current_perf["api_res"], # ADVANCED TOKEN SAVING
-                                max_output_tokens=100 
+                                response_modalities=["Image"]
                             )
                         )
                         for part in response.candidates[0].content.parts:
